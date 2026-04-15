@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <title>IQ Library</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+  </head>
+
+  <body class="bg-gray-300 font-mono text-black">
+    <div class="max-w-4xl mx-auto mt-6 border-4 border-gray-500 bg-white">
+      <div class="border-b-2 border-gray-400 p-4 text-center">
+        <h1 class="text-xl font-bold text-red-700 tracking-wide">◆ IQ Library System ◆</h1>
+        <p class="text-xs text-gray-600 mt-1">Internal Management System</p>
+      </div>
+
+      <div class="border-b border-gray-400 bg-yellow-100 text-sm px-3 py-1">
+        <marquee>Welcome to IQ Library / Link Free / System Active</marquee>
+      </div>
+
+      <div class="p-4 border-b border-gray-400 bg-gray-50">
+        <div class="grid grid-cols-3 gap-3 text-sm">
+          <input id="userId" placeholder="User ID" class="border border-gray-400 px-2 py-1 bg-white" />
+
+          <input id="dispName" placeholder="Name" class="border border-gray-400 px-2 py-1 bg-white" />
+
+          <select id="duration" onchange="toggleCustomDate()" class="border border-gray-400 px-2 py-1 bg-white">
+            <option value="2weeks">2 Weeks</option>
+            <option value="1month">1 Month</option>
+            <option value="custom">Custom</option>
+          </select>
+        </div>
+
+        <div id="customDateGroup" class="hidden mt-2">
+          <input type="date" id="customDate" class="border border-gray-400 px-2 py-1 w-full bg-white" />
+        </div>
+      </div>
+
+      <div>
+        <div class="grid grid-cols-12 text-xs font-bold bg-gray-200 border-b border-gray-400 px-2 py-2">
+          <div class="col-span-5">TITLE</div>
+          <div class="col-span-2">STATUS</div>
+          <div class="col-span-3">USER</div>
+          <div class="col-span-2 text-right">ACTION</div>
+        </div>
+
+        <div id="bookList"></div>
+      </div>
+    </div>
+
+    <div id="overlay" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center">
+      <div class="border-4 border-white border-t-blue-500 w-10 h-10 animate-spin"></div>
+    </div>
+
+    <script>
+      const GAS_URL =
+        'https://script.google.com/macros/s/AKfycbzl4-rf8x5llNd36Gh9OQ9pV0CaOcnhq7kQoqQGGo2at5HslrNQl4-eUTRdWo9H4Yf1/exec';
+
+      function toggleCustomDate() {
+        const v = document.getElementById('duration').value;
+        document.getElementById('customDateGroup').classList.toggle('hidden', v !== 'custom');
+      }
+
+      function formatDate(raw) {
+        const d = new Date(raw);
+        if (isNaN(d)) return '-';
+
+        const Y = d.getFullYear();
+        const M = String(d.getMonth() + 1).padStart(2, '0');
+        const D = String(d.getDate()).padStart(2, '0');
+        const h = String(d.getHours()).padStart(2, '0');
+        const m = String(d.getMinutes()).padStart(2, '0');
+
+        return `${Y}/${M}/${D} ${h}:${m}`;
+      }
+
+      async function fetchBooks() {
+        const list = document.getElementById('bookList');
+
+        try {
+          const res = await fetch(GAS_URL);
+          const data = await res.json();
+          const curId = document.getElementById('userId').value.trim();
+
+          list.innerHTML = '';
+
+          data.forEach((book) => {
+            const isAvail = Number(book.ステータス) === 0;
+            const isMine = String(book['借りた人']) === curId;
+
+            const row = document.createElement('div');
+
+            row.className = 'grid grid-cols-12 border-b border-gray-300 px-2 py-2 text-sm';
+
+            row.innerHTML = `
+        <div class="col-span-5 truncate">
+          <a href="${book.URL || '#'}" target="_blank" class="text-blue-700 underline">
+            ${book.タイトル || 'Untitled'}
+          </a>
+        </div>
+
+        <div class="col-span-2 text-xs font-bold">
+          ${
+            isAvail
+              ? `<span class="text-green-700">[ AVAILABLE ]</span>`
+              : `<span class="text-red-700">[ RENTED ]</span>`
+          }
+        </div>
+
+        <div class="col-span-3 text-xs text-gray-800">
+          ${!isAvail ? `${book['名前'] || book['借りた人'] || '-'} / ${formatDate(book.返却予定日)}` : '-'}
+        </div>
+
+        <div class="col-span-2 text-right">
+          ${
+            isAvail
+              ? `<button onclick="process('${book.ID}','borrow')"
+                  class="border border-green-700 text-green-700 px-2 py-1 text-xs font-bold hover:bg-green-50">
+                  Borrow
+                </button>`
+              : isMine
+                ? `<button onclick="process('${book.ID}','return')"
+                  class="border border-red-700 text-red-700 px-2 py-1 text-xs font-bold hover:bg-red-50">
+                  Return
+                </button>`
+                : `<span class="text-gray-400 text-xs">-</span>`
+          }
+        </div>
+      `;
+
+            list.appendChild(row);
+          });
+        } catch {
+          list.innerHTML = `<div class="text-center text-red-600 py-4">Error: データベースに接続できません</div>`;
+        }
+      }
+
+      async function process(id, action) {
+        const uid = document.getElementById('userId').value.trim();
+        const name = document.getElementById('dispName').value.trim();
+        const duration = document.getElementById('duration').value;
+        const customDate = document.getElementById('customDate').value;
+
+        if (!/^ee\d{6}$/.test(uid)) {
+          alert('Invalid ID: eeから始まる8桁のIDを入力してください');
+          return;
+        }
+
+        document.getElementById('overlay').classList.remove('hidden');
+
+        try {
+          const res = await fetch(GAS_URL, {
+            method: 'POST',
+            body: JSON.stringify({
+              action,
+              id,
+              userId: uid,
+              displayName: name,
+              duration,
+              customDate: duration === 'custom' ? customDate : null
+            })
+          });
+
+          if (!res.ok && res.type !== 'opaque') {
+            throw new Error('Network Error');
+          }
+
+          // 待機時間を 1500ms -> 400ms に大幅カット
+          await new Promise((r) => setTimeout(r, 400));
+          await fetchBooks();
+        } catch (error) {
+          console.error(error);
+          alert('通信エラーが発生しました。時間を置いて再度お試しください。');
+        } finally {
+          document.getElementById('overlay').classList.add('hidden');
+        }
+      }
+
+      document.getElementById('userId').addEventListener('input', fetchBooks);
+      window.onload = fetchBooks;
+    </script>
+  </body>
+</html>
