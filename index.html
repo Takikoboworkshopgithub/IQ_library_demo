@@ -140,8 +140,8 @@
         const duration = document.getElementById('duration').value;
         const customDate = document.getElementById('customDate').value;
 
-        if (!/^ee\d{6}$/.test(uid)) {
-          alert('Invalid ID: eeから始まる8桁のIDを入力してください');
+        if (!/^(ee\d{6}|\d{10})$/.test(uid)) {
+          alert('Invalid ID: eeから始まる8桁のID または 10桁の数字を入力してください');
           return;
         }
 
